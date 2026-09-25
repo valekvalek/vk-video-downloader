@@ -1,0 +1,40 @@
+# Составы по матчу «Тур 2: Highway Logistic Group — ЦППК» (pinkov.ru), формат 6 на 6.
+# Позиции: GK вратарь, DF защитник, MF полузащитник, FW нападающий, UT универсал.
+# Цвет формы — ПРИМЕРНЫЙ (RGB), уточнить по кадру: он нужен для разделения команд.
+ours:
+  name: Highway Logistic Group
+  color: [30, 60, 140]
+  players:
+    - {number: 99, name: П. Валентин,  position: UT}
+    - {number: 31, name: В. Роман,     position: DF}
+    - {number: 4,  name: Ч. Максим,    position: FW}
+    - {number: 28, name: К. Евгений,   position: DF}
+    - {number: 2,  name: М. Стефан,    position: GK}
+    - {number: 69, name: З. Савелий,   position: FW}
+    - {number: 15, name: П. Дмитрий,   position: DF}
+    - {number: 3,  name: И. Александр, position: FW}
+    - {number: 1,  name: К. Иван,      position: GK}
+    - {number: 22, name: Х. Антон,     position: MF}
+    - {number: 11, name: П. Антон,     position: DF}
+    - {number: 92, name: Б. Вячеслав,  position: MF}
+    - {number: 7,  name: Г. Егор,      position: UT}
+    - {number: 17, name: Ф. Юрий,      position: DF}
+    - {number: 9,  name: Н. Дмитрий,   position: FW}
+    - {number: 27, name: Д. Виталий,   position: GK}
+    - {number: 67, name: Ш. Марк,      position: DF}
+    - {number: 10, name: П. Иван,      position: FW}
+opp:
+  name: ЦППК
+  color: [200, 30, 30]
+  players:
+    - {number: 4,  name: Т. Сергей, position: DF}
+    - {number: 20, name: Г. Артём,  position: DF}
+    - {number: 2,  name: Х. Тимур,  position: DF}
+    - {number: 43, name: П. Александр, position: GK}
+  # На pinkov.ru номера не указаны — сопоставить по видео (номер -> игрок).
+  unnumbered:
+    - {name: Г. Рустам,   position: UT}
+    - {name: О. Владимир, position: DF}
+    - {name: Ю. Кирилл,   position: MF}
+    - {name: П. Иван,     position: MF}
+    - {name: К. Евгений,  position: MF}
