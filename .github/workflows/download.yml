@@ -1,0 +1,29 @@
+name: Download video
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Ссылка на видео"
+        required: true
+      quality:
+        description: "Высота (best, 1080, 720, 480, 360, 240, audio)"
+        default: "720"
+jobs:
+  dl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get install -y ffmpeg && pip install -U yt-dlp
+      - name: Download
+        env:
+          VIDEO_URL: ${{ inputs.url }}
+          QUALITY: ${{ inputs.quality }}
+        run: python vk_downloader.py "$VIDEO_URL" -q "$QUALITY" -o out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: video
+          path: out/*
+          retention-days: 3
