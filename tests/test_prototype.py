@@ -149,11 +149,12 @@ def test_referee_cluster_excluded_from_legibility():
 
     det = Det()
     frames = []
-    for i in range(12):
+    for i in range(200):  # 2600 наблюдений > размера выборки вырезок: статистика — по всем
         f, d = scene(i)
         det.cache[i] = d
         frames.append((i, f))
     with tempfile.TemporaryDirectory() as d:
         s = run_prototype(frames, det, d, fps=2.0, legible_px=100)
-    assert s["referee_cluster_observations"] == 12
+    assert s["referee_cluster_observations"] == 200
+    assert sum(c["n"] for c in s["clusters"]) == 2600
     assert s["legible_share"] == 0.0

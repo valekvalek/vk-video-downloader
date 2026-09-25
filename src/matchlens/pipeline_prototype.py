@@ -34,11 +34,14 @@ def run_prototype(frames, detector: Detector, out_dir: str | Path, fps: float,
 
     heights: list[float] = []
     per_frame: list[int] = []
-    colors: list[np.ndarray] = []
-    obs: list[tuple[float, int, np.ndarray, np.ndarray | None]] = []  # рост, кадр, вырезка, цвет
+    rec_h: list[float] = []              # рост каждого наблюдения с известным цветом
+    rec_c: list[np.ndarray] = []         # цвет формы этого наблюдения
     balls = 0
     n_frames = 0
-    pool: list[tuple[float, int, np.ndarray]] = []  # (высота, кадр, вырезка)
+    reservoir: list[tuple[float, int, np.ndarray, np.ndarray | None]] = []  # выборка вырезок
+    cap = 1500
+    seen = 0
+    rng = np.random.default_rng(0)
 
     for idx, frame in frames:
         n_frames += 1
@@ -51,51 +54,68 @@ def run_prototype(frames, detector: Detector, out_dir: str | Path, fps: float,
             heights.append(hgt)
             c = dominant_color(torso_crop(frame, d.bbox))
             if c is not None:
-                colors.append(c)
+                rec_h.append(hgt)
+                rec_c.append(c)
             crop = _upper_body(frame, d.bbox)
-            if crop.size:
-                obs.append((hgt, idx, crop.copy(), c))
-        if len(obs) > 6 * max_crops * 3:
-            obs = sorted(obs, key=lambda p: -p[0])[: 3 * max_crops * 3]
+            if crop.size:  # резервуарная выборка: статистика по всем, вырезки — по выборке
+                seen += 1
+                item = (hgt, idx, crop.copy(), c)
+                if len(reservoir) < cap:
+                    reservoir.append(item)
+                else:
+                    j = int(rng.integers(seen))
+                    if j < cap:
+                        reservoir[j] = item
 
     # Три группы по цвету формы: команда 1, команда 2 и судья (в кадре обычно один и ближе всех
     # к камере — его крупные планы иначе завышают оценку читаемости номеров игроков).
     clusters: list[dict] = []
     ref_cluster = None
-    with_color = [o for o in obs if o[3] is not None]
-    if len(with_color) >= 30:
-        labels, _ = kmeans(np.array([o[3] for o in with_color]), k=3)
+    centers = None
+    labels = np.zeros(0, dtype=int)
+    if len(rec_c) >= 30:
+        labels, centers = kmeans(np.array(rec_c), k=3)
+        hs_all = np.array(rec_h)
         for j in range(3):
-            members = [o for o, lab in zip(with_color, labels, strict=True) if lab == j]
-            if not members:
+            mask = labels == j
+            if not mask.any():
                 continue
-            hs = np.array([m[0] for m in members])
-            clusters.append({"id": j, "n": len(members), "p50": float(np.percentile(hs, 50)),
+            hs = hs_all[mask]
+            clusters.append({"id": j, "n": int(mask.sum()), "p50": float(np.percentile(hs, 50)),
                              "p90": float(np.percentile(hs, 90)),
-                             "legible_share": round(float((hs >= legible_px).mean()), 3),
-                             "members": members})
+                             "legible_share": round(float((hs >= legible_px).mean()), 3)})
         if len(clusters) == 3:
             ref_cluster = min(clusters, key=lambda c: c["n"])["id"]  # самая малочисленная
-    player_h = [m[0] for c in clusters if c["id"] != ref_cluster for m in c["members"]]
-    if player_h:
-        h = np.array(player_h)
-        legible_share = float((h >= legible_px).mean())
+    if len(rec_c) >= 30:
+        keep = labels != ref_cluster if ref_cluster is not None else np.ones(len(rec_h), bool)
+        h = np.array(rec_h)[keep]
     else:
         h = np.array(heights) if heights else np.zeros(1)
-        legible_share = float((h >= legible_px).mean()) if heights else 0.0
+    legible_share = float((h >= legible_px).mean()) if len(h) else 0.0
 
     team_counts = {"A": 0, "B": 0}
     others = [c for c in clusters if c["id"] != ref_cluster]
     for key, c in zip(("A", "B"), others, strict=False):
         team_counts[key] = c["n"]
-    pool = [(o[0], o[1], o[2]) for c in others for o in c["members"]] if others else \
-        [(o[0], o[1], o[2]) for o in obs]
-    for c in clusters:
-        top = sorted(c["members"], key=lambda m: -m[0])[:16]
+
+    def _cluster_of(color):
+        return int(np.linalg.norm(centers - color, axis=1).argmin())
+
+    by_cluster: dict[int, list] = {c["id"]: [] for c in clusters}
+    pool = []
+    for it in reservoir:
+        if centers is not None and it[3] is not None:
+            cid = _cluster_of(it[3])
+            by_cluster.setdefault(cid, []).append(it)
+            if cid != ref_cluster:
+                pool.append((it[0], it[1], it[2]))
+        elif centers is None:
+            pool.append((it[0], it[1], it[2]))
+    for cid, members in by_cluster.items():
+        top = sorted(members, key=lambda m: -m[0])[:16]
         if top:
-            tag = "_referee" if c["id"] == ref_cluster else ""
-            write_png(out / f"crops_cluster{c['id']}{tag}.png",
-                      contact_sheet([m[2] for m in top]))
+            tag = "_referee" if cid == ref_cluster else ""
+            write_png(out / f"crops_cluster{cid}{tag}.png", contact_sheet([m[2] for m in top]))
 
     best = sorted(pool, key=lambda p: -p[0])[:max_crops]
     best.sort(key=lambda p: p[1])
