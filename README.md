@@ -17,6 +17,18 @@ matchlens probe match.mp4          # параметры видео (нужен f
 matchlens prepare match.mp4 -o work/proxy.mp4 --start 00:05:00 --end 00:10:00
 ```
 
+## Проверка на реальном видео без скачивания себе на компьютер
+
+Анализ идёт в облаке: раннер берёт только нужный фрагмент (например, 5 минут), считает и
+удаляет его; вы получаете лёгкий отчёт (`report.md`, `summary.json`, `crops_sheet.png`).
+
+- **GitHub Actions:** Actions -> Prototype analysis -> Run workflow (ссылка, время начала, минуты).
+  Работает на CPU: медленно, но без настройки.
+- **Google Colab (GPU):** ноутбук `notebooks/prototype_colab.ipynb`.
+- Локально: `pip install -e ".[vision,download]"` и `matchlens prototype <ссылка|файл> --start 00:10:00`.
+
+Отчёт отвечает на главный вопрос этапа 3: читаются ли номера на майках при этой съёмке.
+
 ## Скачивание записи (VK Видео)
 
 `vk_downloader.py` — отдельный скрипт на `yt-dlp` (окно или командная строка):

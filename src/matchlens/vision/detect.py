@@ -20,16 +20,18 @@ class YoloDetector:
     PERSON, BALL = 0, 32
 
     def __init__(self, weights: str = "yolo11m.pt", conf: float = 0.25,
-                 ball_conf: float = 0.15, device: str | None = None):
+                 ball_conf: float = 0.15, device: str | None = None,
+                 imgsz: int = 1280):
         from ultralytics import YOLO  # ленивый импорт
 
         self.model = YOLO(weights)
         self.conf, self.ball_conf, self.device = conf, ball_conf, device
+        self.imgsz = imgsz  # большой размер помогает находить мелких игроков на общем плане
 
     def detect(self, frame_bgr, frame_idx: int) -> list[Detection]:
         res = self.model.predict(
             frame_bgr, conf=min(self.conf, self.ball_conf), classes=[self.PERSON, self.BALL],
-            device=self.device, verbose=False,
+            device=self.device, imgsz=self.imgsz, verbose=False,
         )[0]
         out: list[Detection] = []
         for box in res.boxes:

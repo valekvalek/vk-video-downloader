@@ -34,6 +34,29 @@ def cmd_roster_check(a) -> int:
     return 0
 
 
+def cmd_prototype(a) -> int:
+    """Проверка на реальном видео: фрагмент -> кадры -> детекция -> отчёт о читаемости номеров."""
+    import tempfile
+
+    from .ingest.stream import fetch_section, iter_frames
+    from .pipeline_prototype import run_prototype
+    from .vision.detect import YoloDetector
+
+    start = prep.parse_ts(a.start)
+    end = start + a.minutes * 60
+    with tempfile.TemporaryDirectory() as tmp:  # видео живёт только здесь и удаляется
+        if Path(a.source).exists():
+            video = Path(a.source)
+        else:
+            print(f"Беру фрагмент {prep.format_ts(start)}–{prep.format_ts(end)} ...")
+            video = fetch_section(a.source, start, end, tmp, height=a.height)
+        detector = YoloDetector(a.weights, imgsz=a.imgsz)
+        summary = run_prototype(iter_frames(video, fps=a.fps), detector, a.out, fps=a.fps)
+    print((Path(a.out) / "report.md").read_text(encoding="utf-8"))
+    print(f"Файлы отчёта: {a.out}/ (видео не сохранено). Кадров: {summary['frames']}")
+    return 0
+
+
 def cmd_demo(a) -> int:
     """Сквозной пример на синтетических данных: события -> находки -> план."""
     from .demo import run_demo
@@ -67,6 +90,17 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("roster-check", help="проверить файл состава")
     s.add_argument("roster")
     s.set_defaults(func=cmd_roster_check)
+
+    s = sub.add_parser("prototype", help="проверка на реальном видео (нужны ultralytics и ffmpeg)")
+    s.add_argument("source", help="ссылка на видео или путь к файлу")
+    s.add_argument("--start", default="00:10:00", help="начало фрагмента")
+    s.add_argument("--minutes", type=float, default=5.0)
+    s.add_argument("--fps", type=float, default=2.0)
+    s.add_argument("--height", type=int, default=720, help="макс. высота потока")
+    s.add_argument("--weights", default="yolo11s.pt")
+    s.add_argument("--imgsz", type=int, default=1280)
+    s.add_argument("--out", default="out")
+    s.set_defaults(func=cmd_prototype)
 
     s = sub.add_parser("demo", help="пример плана на синтетических данных")
     s.add_argument("-o", "--output")
