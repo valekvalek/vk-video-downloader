@@ -89,6 +89,78 @@ def cmd_prototype(a) -> int:
     return 0
 
 
+def cmd_chunks(a) -> int:
+    """Список кусков для параллельного запуска (JSON для matrix в GitHub Actions)."""
+    import json
+
+    start = prep.parse_ts(a.start)
+    total, step = a.total * 60, a.chunk * 60
+    items, pos, i = [], 0.0, 0
+    while pos < total - 1:
+        length = min(step, total - pos)
+        items.append({"name": f"c{i:02d}", "start": prep.format_ts(start + pos)[:8],
+                      "minutes": round(length / 60, 2)})
+        pos += length
+        i += 1
+    print(json.dumps(items, ensure_ascii=False))
+    return 0
+
+
+def cmd_observe(a) -> int:
+    """Один кусок записи -> файл наблюдений (детекция игроков, мяча, цвета формы)."""
+    import tempfile
+
+    from .ingest.stream import fetch_section, iter_frames
+    from .observe import observe_frames, save_observations
+    from .vision.detect import YoloDetector
+
+    start, duration = prep.parse_ts(a.start), a.minutes * 60
+    with tempfile.TemporaryDirectory() as tmp:  # видео живёт только здесь и удаляется
+        print(f"Беру фрагмент {prep.format_ts(start)[:8]} + {a.minutes:g} мин ...")
+        video = fetch_section(a.source, start, start + duration, tmp, height=a.height)
+        detector = YoloDetector(a.weights, imgsz=a.imgsz)
+        obs = observe_frames(iter_frames(video, fps=a.fps, duration=duration), detector,
+                             fps=a.fps, t0=start)
+    save_observations(obs, a.out)
+    print(f"Готово: {len(obs['frames'])} кадров -> {a.out}")
+    return 0
+
+
+def cmd_merge(a) -> int:
+    """Собрать наблюдения всех кусков в отчёт по матчу и план улучшений."""
+    from .analytics.match import analyse, cluster_teams, label_frames
+    from .ingest.stream import normalize_url
+    from .observe import load_observations
+    from .report.match_report import render_match_report
+
+    files = sorted(Path(a.inputs).rglob("*.json.gz")) if Path(a.inputs).is_dir() \
+        else [Path(a.inputs)]
+    if not files:
+        print("Нет файлов наблюдений (*.json.gz)")
+        return 2
+    frames = []
+    for f in files:
+        frames += load_observations(f)["frames"]
+    frames.sort(key=lambda x: x["t"])
+    colors = {}
+    if a.ours_color:
+        colors["ours"] = tuple(int(v) for v in a.ours_color.split(","))
+    if a.opp_color:
+        colors["opp"] = tuple(int(v) for v in a.opp_color.split(","))
+    if a.ref_color:
+        colors["ref"] = tuple(int(v) for v in a.ref_color.split(","))
+    centers, counts = cluster_teams(frames, colors)
+    res = analyse(label_frames(frames, centers), window_s=a.window * 60)
+    clusters = {r: (counts[r], centers[r]) for r in centers}
+    url = normalize_url(a.video_url) if a.video_url else ""
+    text = render_match_report(res, clusters, url)
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "match_report.md").write_text(text, encoding="utf-8")
+    print(text)
+    return 0
+
+
 def cmd_demo(a) -> int:
     """Сквозной пример на синтетических данных: события -> находки -> план."""
     from .demo import run_demo
@@ -138,6 +210,33 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--imgsz", type=int, default=1280)
     s.add_argument("--out", default="out")
     s.set_defaults(func=cmd_prototype)
+
+    s = sub.add_parser("chunks", help="нарезать матч на куски для параллельного запуска")
+    s.add_argument("--start", default="00:00:00")
+    s.add_argument("--total", type=float, required=True, help="сколько минут анализировать")
+    s.add_argument("--chunk", type=float, default=10.0, help="минут в куске")
+    s.set_defaults(func=cmd_chunks)
+
+    s = sub.add_parser("observe", help="один кусок записи -> файл наблюдений")
+    s.add_argument("source")
+    s.add_argument("--start", required=True)
+    s.add_argument("--minutes", type=float, default=10.0)
+    s.add_argument("--fps", type=float, default=2.0)
+    s.add_argument("--height", type=int, default=720)
+    s.add_argument("--weights", default="yolo11s.pt")
+    s.add_argument("--imgsz", type=int, default=1280)
+    s.add_argument("--out", required=True)
+    s.set_defaults(func=cmd_observe)
+
+    s = sub.add_parser("merge", help="наблюдения кусков -> отчёт по матчу и план")
+    s.add_argument("inputs", help="папка с *.json.gz или один файл")
+    s.add_argument("--video-url", default="")
+    s.add_argument("--ours-color", help="R,G,B формы нашей команды")
+    s.add_argument("--opp-color", help="R,G,B формы соперника")
+    s.add_argument("--ref-color", help="R,G,B формы судьи")
+    s.add_argument("--window", type=float, default=2.0, help="длина отрезка в минутах")
+    s.add_argument("--out", default="out")
+    s.set_defaults(func=cmd_merge)
 
     s = sub.add_parser("demo", help="пример плана на синтетических данных")
     s.add_argument("-o", "--output")
