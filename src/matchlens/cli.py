@@ -131,7 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--scan-from", default="00:00:00", help="с какого места искать начало игры")
     s.add_argument("--scan-minutes", type=float, default=40.0)
     s.add_argument("--scan-step", type=float, default=10.0, help="шаг сканирования, секунд")
-    s.add_argument("--min-players", type=int, default=12)
+    s.add_argument("--min-players", type=int, default=1)
     s.add_argument("--fps", type=float, default=2.0)
     s.add_argument("--height", type=int, default=720, help="макс. высота потока")
     s.add_argument("--weights", default="yolo11s.pt")

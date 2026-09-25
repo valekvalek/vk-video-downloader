@@ -81,7 +81,7 @@ def test_pick_kickoff_ignores_studio_and_short_bursts():
     counts = [(t, 0) for t in range(0, 300, 10)]
     counts += [(t, 15) for t in range(300, 360, 10)] + [(t, 2) for t in range(360, 600, 10)]
     counts += [(t, 16) for t in range(600, 900, 10)]
-    assert pick_kickoff(counts, min_players=12, sustain_s=90) == 600
+    assert pick_kickoff(counts, min_players=9, sustain_s=90) == 600
     assert pick_kickoff([(t, 3) for t in range(0, 600, 10)]) is None
     assert pick_kickoff([]) is None
 
