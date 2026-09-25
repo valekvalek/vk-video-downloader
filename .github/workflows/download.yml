@@ -10,10 +10,10 @@ on:
         default: "720"
 jobs:
   dl:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: sudo apt-get install -y ffmpeg && pip install -U yt-dlp
@@ -21,9 +21,11 @@ jobs:
         env:
           VIDEO_URL: ${{ inputs.url }}
           QUALITY: ${{ inputs.quality }}
+          VK_FRAGMENTS: "12"
         run: python vk_downloader.py "$VIDEO_URL" -q "$QUALITY" -o out
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: video
           path: out/*
           retention-days: 3
+          compression-level: 0
