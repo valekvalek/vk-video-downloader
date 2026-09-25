@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-POSITIONS = {"GK", "DF", "MF", "FW"}
+POSITIONS = {"GK", "DF", "MF", "FW", "UT"}  # UT — универсал
 
 
 class RosterError(ValueError):
