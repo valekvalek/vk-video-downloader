@@ -5,9 +5,8 @@ ours:
   name: Highway Logistic Group
   color: [30, 60, 140]
   players:
-    - {number: 99, name: П. Валентин,  position: UT}
+    - {number: 4,  name: П. Валентин,  position: UT}   # на pinkov.ru №99, по факту в игре №4
     - {number: 31, name: В. Роман,     position: DF}
-    - {number: 4,  name: Ч. Максим,    position: FW}
     - {number: 28, name: К. Евгений,   position: DF}
     - {number: 2,  name: М. Стефан,    position: GK}
     - {number: 69, name: З. Савелий,   position: FW}
@@ -23,6 +22,9 @@ ours:
     - {number: 27, name: Д. Виталий,   position: GK}
     - {number: 67, name: Ш. Марк,      position: DF}
     - {number: 10, name: П. Иван,      position: FW}
+  # На pinkov.ru у Ч. Максима №4, но №4 в игре у П. Валентина — реальный номер уточнить по видео.
+  unnumbered:
+    - {name: Ч. Максим, position: FW}
 opp:
   name: ЦППК
   color: [200, 30, 30]
