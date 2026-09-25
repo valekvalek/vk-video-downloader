@@ -2,6 +2,7 @@
 отдаём кадры в память и удаляем временный файл. Полное видео никуда не сохраняется."""
 from __future__ import annotations
 
+import re
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
@@ -9,6 +10,13 @@ from pathlib import Path
 import numpy as np
 
 from .prepare import probe
+
+
+def normalize_url(url: str) -> str:
+    """live-123_456 / clip123_456 -> https://vkvideo.ru/video-123_456 (так URL понимает yt-dlp)."""
+    url = url.strip()
+    m = re.search(r"vk(?:video)?\.(?:ru|com)/.*?(?:live|video|clip)(-?\d+_\d+)", url)
+    return f"https://vkvideo.ru/video{m.group(1)}" if m else url
 
 
 def fetch_section(url: str, start: float, end: float, dest_dir: str | Path,
@@ -30,7 +38,7 @@ def fetch_section(url: str, start: float, end: float, dest_dir: str | Path,
         "quiet": True,
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
-        ydl.download([url])
+        ydl.download([normalize_url(url)])
     files = sorted(dest.glob("section.*"))
     if not files:
         raise RuntimeError("yt-dlp не создал файл фрагмента")
