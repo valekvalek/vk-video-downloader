@@ -37,12 +37,21 @@ def fetch_section(url: str, start: float, end: float, dest_dir: str | Path,
     return files[0]
 
 
-def iter_frames(path: str | Path, fps: float = 2.0) -> Iterator[tuple[int, np.ndarray]]:
-    """Кадры RGB (H, W, 3) с частотой fps; читаются потоком из ffmpeg, файл целиком не грузится."""
+def iter_frames(path: str | Path, fps: float = 2.0, start: float = 0.0,
+                duration: float | None = None) -> Iterator[tuple[int, np.ndarray]]:
+    """Кадры RGB (H, W, 3) с частотой fps; читаются потоком из ffmpeg, файл целиком не грузится.
+
+    start/duration — окно внутри файла (секунды); индексы кадров идут с 0 от начала окна.
+    """
     info = probe(path)
     w, h = info.width, info.height
-    cmd = ["ffmpeg", "-v", "error", "-i", str(path), "-vf", f"fps={fps}",
-           "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    cmd = ["ffmpeg", "-v", "error"]
+    if start:
+        cmd += ["-ss", str(start)]
+    cmd += ["-i", str(path)]
+    if duration is not None:
+        cmd += ["-t", str(duration)]
+    cmd += ["-vf", f"fps={fps}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     size = w * h * 3
     try:

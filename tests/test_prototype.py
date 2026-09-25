@@ -72,3 +72,46 @@ def test_iter_frames_streams_rgb_frames():
         frames = list(iter_frames(src, fps=2))
     assert 5 <= len(frames) <= 7
     assert frames[0][1].shape == (180, 320, 3) and frames[0][1].dtype == np.uint8
+
+
+def test_pick_kickoff_ignores_studio_and_short_bursts():
+    from matchlens.kickoff import pick_kickoff
+
+    # 0-300 с студия (0 игроков), 300-360 вспышка 15 игроков, пауза, с 600 с — игра
+    counts = [(t, 0) for t in range(0, 300, 10)]
+    counts += [(t, 15) for t in range(300, 360, 10)] + [(t, 2) for t in range(360, 600, 10)]
+    counts += [(t, 16) for t in range(600, 900, 10)]
+    assert pick_kickoff(counts, min_players=12, sustain_s=90) == 600
+    assert pick_kickoff([(t, 3) for t in range(0, 600, 10)]) is None
+    assert pick_kickoff([]) is None
+
+
+def test_scan_and_kickoff_report_files():
+    import tempfile
+
+    from matchlens.kickoff import scan_counts, write_kickoff_report
+
+    class Det:
+        def detect(self, frame_bgr, i):
+            n = 14 if i >= 3 else 0
+            return [Detection(i, "player", BBox(0, 0, 10, 20), 0.9) for _ in range(n)]
+
+    counts, thumbs = scan_counts(_frames(8), Det(), step_s=10.0, offset_s=100.0)
+    assert counts[0] == (100.0, 0) and counts[3] == (130.0, 14) and len(thumbs) == 8
+    with tempfile.TemporaryDirectory() as d:
+        text = write_kickoff_report(d, 130.0, counts, thumbs, {"min_players": 12, "sustain_s": 90})
+        assert "00:02:10" in text and (Path(d) / "kickoff_sheet.png").exists()
+        none = write_kickoff_report(d + "/x", None, counts, thumbs, {"min_players": 12,
+                                                                     "sustain_s": 90})
+        assert "не найдено" in none
+
+
+def test_iter_frames_start_and_duration():
+    with tempfile.TemporaryDirectory() as d:
+        src = Path(d) / "t.mp4"
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=25",
+             "-t", "6", "-pix_fmt", "yuv420p", str(src)], check=True)
+        all_frames = list(iter_frames(src, fps=1))
+        window = list(iter_frames(src, fps=1, start=2, duration=2))
+    assert len(all_frames) == 6 and 1 <= len(window) <= 3

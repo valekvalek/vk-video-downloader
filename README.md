@@ -27,6 +27,11 @@ matchlens prepare match.mp4 -o work/proxy.mp4 --start 00:05:00 --end 00:10:00
 - **Google Colab (GPU):** ноутбук `notebooks/prototype_colab.ipynb`.
 - Локально: `pip install -e ".[vision,download]"` и `matchlens prototype <ссылка|файл> --start 00:10:00`.
 
+Начало игры можно не искать вручную: `--start auto` (в workflow — поле `start` = `auto`)
+сканирует начало записи, находит момент, когда на поле стабильно много игроков, и берёт
+оттуда фрагмент. Результат поиска — `kickoff.md` и лист кадров `kickoff_sheet.png` для проверки
+глазами (разминку можно принять за игру).
+
 Отчёт отвечает на главный вопрос этапа 3: читаются ли номера на майках при этой съёмке.
 
 ## Скачивание записи (VK Видео)
