@@ -1,0 +1,40 @@
+name: Prototype analysis
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Ссылка на видео"
+        required: true
+      start:
+        description: "Начало фрагмента (чч:мм:сс)"
+        default: "00:10:00"
+      minutes:
+        description: "Сколько минут анализировать"
+        default: "5"
+      fps:
+        description: "Кадров в секунду для анализа"
+        default: "2"
+jobs:
+  proto:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get install -y ffmpeg
+      - run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e ".[vision,download]" && pip install -U yt-dlp
+      - name: Analyse
+        env:
+          VIDEO_URL: ${{ inputs.url }}
+          START: ${{ inputs.start }}
+          MINUTES: ${{ inputs.minutes }}
+          FPS: ${{ inputs.fps }}
+        run: matchlens prototype "$VIDEO_URL" --start "$START" --minutes "$MINUTES" --fps "$FPS" --out out
+      - uses: actions/upload-artifact@v5
+        with:
+          name: prototype-report
+          path: out/*
+          retention-days: 14
