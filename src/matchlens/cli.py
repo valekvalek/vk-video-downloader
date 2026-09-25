@@ -128,6 +128,8 @@ def cmd_observe(a) -> int:
 
 def cmd_merge(a) -> int:
     """Собрать наблюдения всех кусков в отчёт по матчу и план улучшений."""
+    import numpy as np
+
     from .analytics.match import analyse, cluster_teams, label_frames
     from .ingest.stream import normalize_url
     from .observe import load_observations
@@ -151,7 +153,7 @@ def cmd_merge(a) -> int:
         colors["ref"] = tuple(int(v) for v in a.ref_color.split(","))
     centers, counts = cluster_teams(frames, colors)
     res = analyse(label_frames(frames, centers), window_s=a.window * 60)
-    clusters = {r: (counts[r], centers[r]) for r in centers}
+    clusters = {r: (counts[r], np.atleast_2d(centers[r])[0]) for r in centers}
     url = normalize_url(a.video_url) if a.video_url else ""
     text = render_match_report(res, clusters, url)
     from .analytics.match import color_diagnostics

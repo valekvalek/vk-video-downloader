@@ -5,7 +5,7 @@ from matchlens.cli import main
 from matchlens.observe import load_observations, save_observations
 from matchlens.report.match_report import render_match_report
 
-BLUE, WHITE, REF = (25, 75, 170), (235, 235, 235), (50, 140, 230)
+BLUE, WHITE, REF = (42, 49, 81), (195, 199, 222), (36, 35, 42)  # как в реальной палитре
 
 
 def _player(x, y, col, h=100):
@@ -59,7 +59,7 @@ def test_analyse_and_report():
     assert 0.6 < s["possession_ours"] < 0.7
     assert s["pressed_share_ours"] is not None and s["pressed_share_ours"] > 0.4
     assert any(f.kind == "loss_free" for f in res["findings"])
-    text = render_match_report(res, {r: (counts[r], centers[r]) for r in centers},
+    text = render_match_report(res, {r: (counts[r], centers[r][0]) for r in centers},
                                "https://vkvideo.ru/video-1_2")
     assert "План улучшений" in text and "?t=" in text and "Потери мяча" in text
 

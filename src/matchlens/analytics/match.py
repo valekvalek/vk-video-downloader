@@ -18,34 +18,54 @@ def _clip(t: float, before: float = 6.0, after: float = 4.0) -> tuple[float, flo
     return (max(0.0, t - before), t + after)
 
 
+# Палитра, снятая с диагностики реального матча (ночь, цвета сдвинуты): каждой группе — роль.
+# Тёмно-синие и синие оттенки — Highway; светлые серо-голубые — ЦППК; всё остальное
+# (чёрная куртка судьи, тёмные фигуры вне поля, оранжевое, жёлто-зелёное) — не игроки команд.
+PALETTE = [
+    ((42, 49, 81), OURS), ((92, 101, 123), OURS),
+    ((147, 151, 167), OPP), ((195, 199, 222), OPP),
+    ((36, 35, 42), REF), ((76, 67, 67), REF), ((154, 79, 39), REF), ((159, 156, 64), REF),
+]
+
+
 def cluster_teams(frames: list[dict], colors: dict[str, tuple[int, int, int]] | None = None,
                   iters: int = 20) -> tuple[dict[str, np.ndarray], dict[str, int]]:
-    """K-means по цветам формы, центры стартуют с цветов из состава (синие, белые, судья)."""
-    anchors = dict(DEFAULT_COLORS)
-    anchors.update(colors or {})
+    """K-means на 8 групп с центрами из PALETTE; группа получает роль своего стартового центра.
+    Если цвета команд заданы явно — они заменяют первые центры своей роли.
+    Возвращает {роль: центры (n,3)} и число наблюдений по ролям."""
+    seeds = [(np.array(c, dtype=np.float64), r) for c, r in PALETTE]
+    for role, col in (colors or {}).items():
+        i = next((i for i, (_, r) in enumerate(seeds) if r == role), None)
+        if i is not None:
+            seeds[i] = (np.array(col, dtype=np.float64), role)
     roles = [OURS, OPP, REF]
-    centers = np.array([anchors[r] for r in roles], dtype=np.float64)
+    centers = np.array([c for c, _ in seeds])
+    seed_roles = [r for _, r in seeds]
     pts = np.array([p[4:7] for f in frames for p in f["p"] if p[4] >= 0], dtype=np.float64)
     counts = {r: 0 for r in roles}
-    if len(pts) < 30:
-        return dict(zip(roles, centers, strict=True)), counts
-    labels = np.zeros(len(pts), dtype=int)
-    for _ in range(iters):
-        new = ((pts[:, None, :] - centers[None, :, :]) ** 2).sum(2).argmin(1)
-        for j in range(3):
-            if (new == j).any():
-                centers[j] = pts[new == j].mean(0)
-        if (new == labels).all():
-            break
-        labels = new
-    counts = {r: int((labels == j).sum()) for j, r in enumerate(roles)}
-    return dict(zip(roles, centers, strict=True)), counts
+    if len(pts) >= 30:
+        labels = np.full(len(pts), -1)
+        for _ in range(iters):
+            new = ((pts[:, None, :] - centers[None, :, :]) ** 2).sum(2).argmin(1)
+            for j in range(len(centers)):
+                if (new == j).any():
+                    centers[j] = pts[new == j].mean(0)
+            if (new == labels).all():
+                break
+            labels = new
+        for j, r in enumerate(seed_roles):
+            counts[r] += int((labels == j).sum())
+    grouped = {r: np.array([centers[j] for j, sr in enumerate(seed_roles) if sr == r])
+               for r in roles}
+    return grouped, counts
 
 
 def label_frames(frames: list[dict], centers: dict[str, np.ndarray]) -> list[dict]:
-    """Каждому игроку — роль ours/opp/ref по ближайшему центру цвета."""
-    roles = list(centers)
-    cm = np.array([centers[r] for r in roles])
+    """Каждому игроку — роль ours/opp/ref по ближайшему центру цвета (центров на роль может быть
+    несколько)."""
+    flat = [(c, r) for r, cs in centers.items() for c in np.atleast_2d(cs)]
+    cm = np.array([c for c, _ in flat])
+    roles = [r for _, r in flat]
     out = []
     for f in frames:
         teams: dict[str, list[list[int]]] = {OURS: [], OPP: [], REF: []}
