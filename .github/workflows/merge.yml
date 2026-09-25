@@ -1,0 +1,52 @@
+name: Rebuild match report
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Номер запуска Match analysis, откуда взять наблюдения"
+        required: true
+      url:
+        description: "Ссылка на видео (для ссылок на моменты)"
+        required: true
+      ours_color:
+        description: "Цвет нашей формы R,G,B (необязательно)"
+        default: ""
+      opp_color:
+        description: "Цвет формы соперника R,G,B (необязательно)"
+        default: ""
+      ref_color:
+        description: "Цвет формы судьи R,G,B (необязательно)"
+        default: ""
+jobs:
+  merge:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: obs-*
+          path: obs
+          merge-multiple: true
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Merge
+        env:
+          VIDEO_URL: ${{ inputs.url }}
+          OURS: ${{ inputs.ours_color }}
+          OPP: ${{ inputs.opp_color }}
+          REF: ${{ inputs.ref_color }}
+        run: |
+          ARGS=()
+          [ -n "$OURS" ] && ARGS+=(--ours-color "$OURS")
+          [ -n "$OPP" ] && ARGS+=(--opp-color "$OPP")
+          [ -n "$REF" ] && ARGS+=(--ref-color "$REF")
+          matchlens merge obs --video-url "$VIDEO_URL" --out out "${ARGS[@]}"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: match-report
+          path: out/*
+          retention-days: 14

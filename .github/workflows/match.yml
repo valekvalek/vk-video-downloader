@@ -1,0 +1,89 @@
+name: Match analysis
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Ссылка на видео"
+        required: true
+      start:
+        description: "Начало игры (чч:мм:сс)"
+        default: "00:02:05"
+      total_minutes:
+        description: "Сколько минут игры анализировать"
+        default: "53"
+      chunk_minutes:
+        description: "Минут в одном куске (куски идут параллельно)"
+        default: "10"
+      fps:
+        description: "Кадров в секунду для анализа"
+        default: "2"
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - id: m
+        env:
+          START: ${{ inputs.start }}
+          TOTAL: ${{ inputs.total_minutes }}
+          CHUNK: ${{ inputs.chunk_minutes }}
+        run: echo "matrix=$(matchlens chunks --start "$START" --total "$TOTAL" --chunk "$CHUNK")" >> "$GITHUB_OUTPUT"
+  observe:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get install -y ffmpeg
+      - run: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e ".[vision,download]" && pip install -U yt-dlp
+      - name: Observe
+        env:
+          VIDEO_URL: ${{ inputs.url }}
+          FPS: ${{ inputs.fps }}
+          CSTART: ${{ matrix.chunk.start }}
+          CMIN: ${{ matrix.chunk.minutes }}
+          CNAME: ${{ matrix.chunk.name }}
+        run: matchlens observe "$VIDEO_URL" --start "$CSTART" --minutes "$CMIN" --fps "$FPS" --out "obs/$CNAME.json.gz"
+      - uses: actions/upload-artifact@v5
+        with:
+          name: obs-${{ matrix.chunk.name }}
+          path: obs/*.json.gz
+          retention-days: 14
+  merge:
+    needs: observe
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: obs-*
+          path: obs
+          merge-multiple: true
+      - name: Merge
+        env:
+          VIDEO_URL: ${{ inputs.url }}
+        run: matchlens merge obs --video-url "$VIDEO_URL" --out out
+      - uses: actions/upload-artifact@v5
+        with:
+          name: match-report
+          path: out/*
+          retention-days: 14
