@@ -154,6 +154,12 @@ def cmd_merge(a) -> int:
     clusters = {r: (counts[r], centers[r]) for r in centers}
     url = normalize_url(a.video_url) if a.video_url else ""
     text = render_match_report(res, clusters, url)
+    from .analytics.match import color_diagnostics
+    diag = color_diagnostics(frames)
+    if diag:
+        text += "\n\n## Диагностика цветов (без подсказок, 8 групп)\n\n" + "\n".join(
+            f"- n={d['n']}, RGB {tuple(d['rgb'])}, рост рамки {d['h_mean']} px, "
+            f"низ рамки y={d['y2_mean']}" for d in diag)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "match_report.md").write_text(text, encoding="utf-8")

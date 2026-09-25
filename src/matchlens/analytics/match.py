@@ -246,3 +246,25 @@ def _findings(ws: list[Window], lost: list[Turnover], press_dist: float, free_di
                                    text=f"Мы растянуты сильнее соперника ({so:.1f} против "
                                         f"{sp:.1f}) в отрезке {lbl}", clip=(w.start, w.end)))
     return out
+
+
+def color_diagnostics(frames: list[dict], k: int = 8, min_h: int = 0) -> list[dict]:
+    """Без подсказок: на какие цветовые группы делятся наблюдения (для проверки деления на команды).
+    Для каждой группы: число наблюдений, цвет, средний рост рамки и средняя высота по кадру."""
+    from ..vision.team_split import kmeans
+
+    rows = [p for f in frames for p in f["p"] if p[4] >= 0 and (p[3] - p[1]) >= min_h]
+    if len(rows) < 50:
+        return []
+    arr = np.array(rows, dtype=np.float64)
+    labels, centers = kmeans(arr[:, 4:7], k=min(k, len(rows) // 10 or 1))
+    out = []
+    for j in range(len(centers)):
+        m = labels == j
+        if not m.any():
+            continue
+        h = arr[m, 3] - arr[m, 1]
+        out.append({"n": int(m.sum()), "rgb": [int(v) for v in centers[j]],
+                    "h_mean": round(float(h.mean()), 1),
+                    "y2_mean": round(float(arr[m, 3].mean()), 1)})
+    return sorted(out, key=lambda r: -r["n"])
