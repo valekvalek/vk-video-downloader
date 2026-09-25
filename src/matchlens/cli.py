@@ -1,0 +1,84 @@
+"""Командная строка: matchlens <команда>."""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from .ingest import prepare as prep
+from .roster import RosterError, load_roster
+
+
+def cmd_probe(a) -> int:
+    info = prep.probe(a.video)
+    print(f"{info.width}x{info.height} @ {info.fps:.2f} fps, {prep.format_ts(info.duration)}")
+    return 0
+
+
+def cmd_prepare(a) -> int:
+    start = prep.parse_ts(a.start) if a.start else None
+    end = prep.parse_ts(a.end) if a.end else None
+    out = prep.make_proxy(a.video, a.output, height=a.height, fps=a.fps, start=start, end=end)
+    print(f"Готово: {out}")
+    return 0
+
+
+def cmd_roster_check(a) -> int:
+    try:
+        r = load_roster(a.roster)
+    except RosterError as e:
+        print(f"Ошибка состава: {e}", file=sys.stderr)
+        return 1
+    print(f"OK: {r.ours.name} ({len(r.ours.players)} игроков), "
+          f"{r.opp.name} ({len(r.opp.players)} игроков)")
+    return 0
+
+
+def cmd_demo(a) -> int:
+    """Сквозной пример на синтетических данных: события -> находки -> план."""
+    from .demo import run_demo
+
+    text = run_demo()
+    if a.output:
+        Path(a.output).write_text(text, encoding="utf-8")
+        print(f"План записан в {a.output}")
+    else:
+        print(text)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="matchlens", description="Анализ футбольного матча по видео")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("probe", help="параметры видеофайла")
+    s.add_argument("video")
+    s.set_defaults(func=cmd_probe)
+
+    s = sub.add_parser("prepare", help="сделать легковесную копию для анализа")
+    s.add_argument("video")
+    s.add_argument("-o", "--output", required=True)
+    s.add_argument("--height", type=int, default=720)
+    s.add_argument("--fps", type=int, default=25)
+    s.add_argument("--start", help="начало, напр. 00:05:00")
+    s.add_argument("--end", help="конец, напр. 00:10:00")
+    s.set_defaults(func=cmd_prepare)
+
+    s = sub.add_parser("roster-check", help="проверить файл состава")
+    s.add_argument("roster")
+    s.set_defaults(func=cmd_roster_check)
+
+    s = sub.add_parser("demo", help="пример плана на синтетических данных")
+    s.add_argument("-o", "--output")
+    s.set_defaults(func=cmd_demo)
+    return p
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

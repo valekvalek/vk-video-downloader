@@ -1,0 +1,28 @@
+video:
+  proxy_height: 720
+  proxy_fps: 25
+  crf: 23
+  chunk_seconds: 300
+
+detection:
+  weights: yolo11m.pt
+  conf: 0.25
+  ball_conf: 0.15
+
+tracking:
+  iou_threshold: 0.3
+  max_lost_frames: 25
+
+jersey:
+  min_votes: 3
+  min_margin: 1.5      # во сколько раз лучший номер должен обгонять второй по весу
+
+events:
+  owner_max_dist_m: 2.0
+  min_hold_s: 0.5
+
+errors:
+  own_third_fraction: 0.333
+  max_line_gap_m: 25.0
+  clip_before_s: 6
+  clip_after_s: 4

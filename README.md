@@ -1,19 +1,52 @@
-# VK Video Downloader
+# matchlens
 
-Установка:
+Анализ футбольного матча по видео: разбор нашей команды и соперника по номерам игроков,
+поиск ошибок с видеофрагментами и план улучшений на следующую игру **без дополнительных
+тренировок** (установки, расстановка, индивидуальные задачи, сигналы, замены).
 
-    pip install -U yt-dlp
-    # ffmpeg должен быть в PATH (Windows: winget install ffmpeg; macOS: brew install ffmpeg)
+Проект идёт по плану из `docs/ROADMAP.md`. Сейчас готовы каркас и «ядро» без нейросетей
+(тесты и пример на синтетических данных); распознавание на реальном видео — этапы 2–4.
 
-Запуск:
+## Быстрый старт
 
-    python vk_downloader.py                       # окно (GUI)
-    python vk_downloader.py https://vkvideo.ru/live-52344015_456244485 --list
-    python vk_downloader.py https://vkvideo.ru/live-52344015_456244485 -q 720 -o ./videos
+```bash
+pip install -e ".[dev]"            # numpy, pyyaml, pytest, ruff
+matchlens demo                     # пример плана на синтетических данных
+matchlens roster-check data/roster.example.yaml
+matchlens probe match.mp4          # параметры видео (нужен ffmpeg)
+matchlens prepare match.mp4 -o work/proxy.mp4 --start 00:05:00 --end 00:10:00
+```
 
-Ссылки вида `live-…`, `video-…`, `clip-…` приводятся к `https://vkvideo.ru/video-<owner>_<id>`.
-Если видео закрытое — добавьте `--cookies-from-browser chrome`.
-Если VK изменит API и загрузка сломается — `pip install -U yt-dlp`.
+## Скачивание записи (VK Видео)
 
-## GitHub Actions
-Actions -> Download video -> Run workflow -> вставьте ссылку. Файл появится в Artifacts запуска.
+`vk_downloader.py` — отдельный скрипт на `yt-dlp` (окно или командная строка):
+
+```bash
+pip install -U yt-dlp
+python vk_downloader.py https://vkvideo.ru/live-52344015_456244485 -q 720 -o ./videos
+```
+
+В GitHub Actions: **Actions → Download video → Run workflow**, вставить ссылку.
+Файл появится в Artifacts запуска (хранится 3 дня). Скачивайте только то, на что есть право.
+
+## Структура
+
+```
+src/matchlens/
+  ingest/prepare.py       этап 1: ffprobe, прокси 720p/25fps, нарезка клипов
+  vision/                 этапы 2–4: детекция, трекинг, команды по цвету, номера, поле в метрах
+  events/possession.py    этап 5: владение мячом, потери и отборы
+  analytics/              этапы 5–6: метрики (форма команды, теплокарты) и правила ошибок
+  report/plan.py          этап 7: план улучшений + запрос к LLM с обязательными ссылками на эпизоды
+  schemas.py, roster.py   модели данных и составы команд
+configs/default.yaml      параметры пайплайна
+data/roster.example.yaml  шаблон состава (номер -> игрок)
+docs/                     архитектура и дорожная карта
+tests/                    автотесты
+```
+
+## Важные ограничения
+
+Камера показывает не всех игроков сразу, поэтому метрики — оценки по видимой части поля.
+Номера, распознанные неуверенно, игрокам не приписываются. Вывод без ссылки на эпизод
+в план не попадает.

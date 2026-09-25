@@ -1,2 +1,14 @@
 out/
+work/
 __pycache__/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Тяжёлые и приватные данные не храним в git
+*.mp4
+*.mkv
+*.pt
+data/roster.yaml
+data/*.json

@@ -1,0 +1,17 @@
+# Скопируйте в data/roster.yaml и заполните. Номера — как на майках.
+ours:
+  name: Наша команда
+  color: [200, 30, 30]      # основной цвет формы, RGB
+  players:
+    - {number: 1,  name: Вратарь,   position: GK}
+    - {number: 4,  name: Защитник,  position: DF}
+    - {number: 8,  name: Полузащитник, position: MF}
+    - {number: 9,  name: Нападающий, position: FW}
+opp:
+  name: Соперник
+  color: [30, 60, 200]
+  players:
+    - {number: 1,  position: GK}
+    - {number: 5,  position: DF}
+    - {number: 10, position: MF}
+    - {number: 11, position: FW}
