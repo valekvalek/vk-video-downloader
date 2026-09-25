@@ -115,3 +115,45 @@ def test_iter_frames_start_and_duration():
         all_frames = list(iter_frames(src, fps=1))
         window = list(iter_frames(src, fps=1, start=2, duration=2))
     assert len(all_frames) == 6 and 1 <= len(window) <= 3
+
+
+def test_referee_cluster_excluded_from_legibility():
+    """Судья (малочисленная цветовая группа, крупный) не должен завышать читаемость номеров."""
+    import tempfile
+
+    import numpy as np
+
+    from matchlens.pipeline_prototype import run_prototype
+    from matchlens.schemas import BBox, Detection
+
+    def scene(n):
+        f = np.zeros((300, 400, 3), np.uint8)
+        f[:, :] = (20, 120, 20)
+        dets = []
+        # 6 маленьких красных, 6 маленьких синих, 1 крупный жёлтый (судья) — рост 200 px
+        for k, (x, col) in enumerate([(10 + 25 * i, (200, 30, 30)) for i in range(6)]
+                                      + [(10 + 25 * i, (30, 30, 200)) for i in range(6, 12)]):
+            y = 100 if k < 6 else 150
+            f[y:y + 40, x:x + 20] = col
+            dets.append(Detection(n, "player", BBox(x, y, x + 20, y + 40), 0.9))
+        f[20:220, 300:380] = (230, 220, 30)
+        dets.append(Detection(n, "player", BBox(300, 20, 380, 220), 0.9))
+        return f, dets
+
+    class Det:
+        def __init__(self):
+            self.cache = {}
+
+        def detect(self, frame_bgr, idx):
+            return self.cache[idx]
+
+    det = Det()
+    frames = []
+    for i in range(12):
+        f, d = scene(i)
+        det.cache[i] = d
+        frames.append((i, f))
+    with tempfile.TemporaryDirectory() as d:
+        s = run_prototype(frames, det, d, fps=2.0, legible_px=100)
+    assert s["referee_cluster_observations"] == 12
+    assert s["legible_share"] == 0.0

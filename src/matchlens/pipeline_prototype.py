@@ -35,6 +35,7 @@ def run_prototype(frames, detector: Detector, out_dir: str | Path, fps: float,
     heights: list[float] = []
     per_frame: list[int] = []
     colors: list[np.ndarray] = []
+    obs: list[tuple[float, int, np.ndarray, np.ndarray | None]] = []  # рост, кадр, вырезка, цвет
     balls = 0
     n_frames = 0
     pool: list[tuple[float, int, np.ndarray]] = []  # (высота, кадр, вырезка)
@@ -53,17 +54,48 @@ def run_prototype(frames, detector: Detector, out_dir: str | Path, fps: float,
                 colors.append(c)
             crop = _upper_body(frame, d.bbox)
             if crop.size:
-                pool.append((hgt, idx, crop.copy()))
-        if len(pool) > 6 * max_crops:
-            pool = sorted(pool, key=lambda p: -p[0])[: 3 * max_crops]
+                obs.append((hgt, idx, crop.copy(), c))
+        if len(obs) > 6 * max_crops * 3:
+            obs = sorted(obs, key=lambda p: -p[0])[: 3 * max_crops * 3]
 
-    h = np.array(heights) if heights else np.zeros(1)
-    legible_share = float((h >= legible_px).mean()) if heights else 0.0
+    # Три группы по цвету формы: команда 1, команда 2 и судья (в кадре обычно один и ближе всех
+    # к камере — его крупные планы иначе завышают оценку читаемости номеров игроков).
+    clusters: list[dict] = []
+    ref_cluster = None
+    with_color = [o for o in obs if o[3] is not None]
+    if len(with_color) >= 30:
+        labels, _ = kmeans(np.array([o[3] for o in with_color]), k=3)
+        for j in range(3):
+            members = [o for o, lab in zip(with_color, labels, strict=True) if lab == j]
+            if not members:
+                continue
+            hs = np.array([m[0] for m in members])
+            clusters.append({"id": j, "n": len(members), "p50": float(np.percentile(hs, 50)),
+                             "p90": float(np.percentile(hs, 90)),
+                             "legible_share": round(float((hs >= legible_px).mean()), 3),
+                             "members": members})
+        if len(clusters) == 3:
+            ref_cluster = min(clusters, key=lambda c: c["n"])["id"]  # самая малочисленная
+    player_h = [m[0] for c in clusters if c["id"] != ref_cluster for m in c["members"]]
+    if player_h:
+        h = np.array(player_h)
+        legible_share = float((h >= legible_px).mean())
+    else:
+        h = np.array(heights) if heights else np.zeros(1)
+        legible_share = float((h >= legible_px).mean()) if heights else 0.0
 
     team_counts = {"A": 0, "B": 0}
-    if len(colors) >= 10:
-        labels, _ = kmeans(np.array(colors), k=2)
-        team_counts = {"A": int((labels == 0).sum()), "B": int((labels == 1).sum())}
+    others = [c for c in clusters if c["id"] != ref_cluster]
+    for key, c in zip(("A", "B"), others, strict=False):
+        team_counts[key] = c["n"]
+    pool = [(o[0], o[1], o[2]) for c in others for o in c["members"]] if others else \
+        [(o[0], o[1], o[2]) for o in obs]
+    for c in clusters:
+        top = sorted(c["members"], key=lambda m: -m[0])[:16]
+        if top:
+            tag = "_referee" if c["id"] == ref_cluster else ""
+            write_png(out / f"crops_cluster{c['id']}{tag}.png",
+                      contact_sheet([m[2] for m in top]))
 
     best = sorted(pool, key=lambda p: -p[0])[:max_crops]
     best.sort(key=lambda p: p[1])
@@ -82,6 +114,9 @@ def run_prototype(frames, detector: Detector, out_dir: str | Path, fps: float,
         "legible_share": round(legible_share, 3),
         "ball_frame_share": round(balls / n_frames, 3) if n_frames else 0.0,
         "team_color_clusters": team_counts,
+        "referee_cluster_observations": next(
+            (c["n"] for c in clusters if c["id"] == ref_cluster), 0),
+        "clusters": [{k: v for k, v in c.items() if k != "members"} for c in clusters],
         "crops_saved": len(best),
     }
     (out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2),
@@ -116,12 +151,14 @@ def render_report(s: dict) -> str:
         f"(грубый порог читаемости номера): {s['legible_share'] * 100:.0f}%.",
         f"Мяч найден на {s['ball_frame_share'] * 100:.0f}% кадров.",
         f"Разделение по цвету формы: группа A — {s['team_color_clusters']['A']}, "
-        f"группа B — {s['team_color_clusters']['B']} наблюдений.",
+        f"группа B — {s['team_color_clusters']['B']} наблюдений; "
+        f"предположительно судья (отброшен из оценки) — {s['referee_cluster_observations']}.",
         "",
         "## Вывод",
         "",
         verdict(s),
         "",
         "Порог в пикселях — эвристика: окончательно читаемость покажет модель распознавания. "
-        "Лист `crops_sheet.png` — самые крупные игроки; посмотрите его глазами: видны ли номера.",
+        "Листы `crops_cluster*.png` — самые крупные игроки каждой цветовой группы (файл с "
+        "`_referee` — предполагаемый судья); посмотрите глазами: видны ли номера.",
     ])
